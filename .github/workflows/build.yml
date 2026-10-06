@@ -1,0 +1,36 @@
+name: Build GloveMouse
+
+# Runs when you publish a Release on GitHub (or manually from the Actions tab).
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write       # attach files to the release
+  id-token: write       # build provenance (proves the exe was built from this code)
+  attestations: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt pyinstaller pip-licenses
+      - run: pyinstaller --noconfirm --onefile --windowed --name GloveMouse --collect-data mediapipe --collect-binaries mediapipe glove_mouse.py
+      - run: python make_release.py
+      - uses: actions/attest-build-provenance@v2
+        continue-on-error: true
+        with:
+          subject-path: dist/GloveMouse.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GloveMouse-windows
+          path: release/*
+      - if: github.event_name == 'release'
+        run: gh release upload "${{ github.event.release.tag_name }}" release/GloveMouse-windows.zip release/SHA256SUMS.txt --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
